@@ -295,6 +295,7 @@ public sealed class FoodSystem : EntitySystem
             {
                 _stack.SetCount(entity.Owner, stack.Count - 1);
                 _solutionContainer.TryAddSolution(soln.Value, split);
+                SpawnTrash(entity.Comp, entity.Owner, args.User);
                 return;
             }
         }
@@ -339,6 +340,34 @@ public sealed class FoodSystem : EntitySystem
         }
 
         QueueDel(food);
+    }
+
+    // Should only be used when spawning trash for a stack of food. For instance, Bananium Stacks, Banana Stacks, etc... But it could be used in conjunction with other trash spawning items as well.
+    public void SpawnTrash(FoodComponent component, EntityUid food, EntityUid user)
+    {
+        var ev = new BeforeFullyEatenEvent
+        {
+            User = user
+        };
+        RaiseLocalEvent(food, ev);
+        if (ev.Cancelled)
+            return;
+
+        if (string.IsNullOrEmpty(component.Trash))
+        {
+            return;
+        }
+
+        // We've been eaten. Become trash.
+        var position = Transform(food).MapPosition;
+        var finisher = Spawn(component.Trash, position);
+
+        // If the user is holding the stack and has an empty hand.
+        if (_hands.IsHolding(user, food, out _) && _hands.TryGetEmptyHand(user, out var emptyHand))
+        {
+            // Put the trash in the user's empty hand.
+            _hands.TryPickup(user, finisher, emptyHand);
+        }
     }
 
     private void AddEatVerb(Entity<FoodComponent> entity, ref GetVerbsEvent<AlternativeVerb> ev)
